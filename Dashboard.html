@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<h3>Customer Profile</h3>
+<p>Email: <span id="mail"></span></p>
+<p>Points: <span id="pts"></span></p>
+
+<hr>
+
+<input id="to" placeholder="Send to (email)"><br><br>
+<input id="amt" type="number" placeholder="Points"><br><br>
+<button onclick="send()">Send Points</button>
+
+<hr>
+<h4>History</h4>
+<ul id="list"></ul>
+
+<script>
+const firebaseConfig = {
+  // SAME FIREBASE CONFIG
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+let user;
+
+auth.onAuthStateChanged(u=>{
+  if(!u) location.href="index.html";
+  user=u;
+  mail.innerText=u.email;
+  loadUser();
+  loadHistory();
+});
+
+function loadUser(){
+  db.collection("users").doc(user.uid).get()
+  .then(d=>pts.innerText=d.data().points);
+}
+
+function send(){
+  const email=to.value;
+  const value=Number(amt.value);
+
+  db.collection("users").where("email","==",email).get()
+  .then(s=>{
+    if(s.empty) return alert("User not found");
+    const r=s.docs[0];
+
+    db.collection("users").doc(user.uid)
+    .update({points:firebase.firestore.FieldValue.increment(-value)});
+    db.collection("users").doc(r.id)
+    .update({points:firebase.firestore.FieldValue.increment(value)});
+
+    db.collection("transactions").add({
+      from:user.email,to:email,amount:value,time:new Date()
+    });
+
+    loadUser();
+    loadHistory();
+  });
+}
+
+function loadHistory(){
+  list.innerHTML="";
+  db.collection("transactions")
+  .where("from","==",user.email)
+  .get().then(s=>{
+    s.forEach(d=>{
+      let li=document.createElement("li");
+      li.innerText=`Sent ${d.data().amount} to ${d.data().to}`;
+      list.appendChild(li);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
